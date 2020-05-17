@@ -4,6 +4,13 @@
 #include <condition_variable> // std::condition_variable
 #include <queue>
 #include <string>
+#include <vector>
+
+#define MAX_WORK 500
+struct work {
+    std::string task;
+    int id;
+};
 
 class threadpool {
     public:
@@ -13,25 +20,50 @@ class threadpool {
                 std::thread* th = new std::thread(&threadpool::workFunction, this);
                 threads.push_back(th);
             }
+            runningWorkId=0;
+            for(int i=0; i < MAX_WORK; ++i) commandOutput.push_back("");
         }
-        void putWork(std::string);
-        std::string getWork();
+        int putWork(std::string);
+        work getWork();
         void workFunction();
         void join();
+        std::string exec(std::string cmd);
+        std::string getOutput(int id) {
+            return commandOutput[id];
+        }
     private:
         int numThreads;
         std::mutex mutexL_;
         std::condition_variable condition_;
-        std::queue<std::string> workQ_;
+        //std::queue<std::string> workQ_;
+        std::queue<work> workQ_;
         std::vector<std::thread*> threads;
+        std::vector<string> commandOutput;
+        int runningWorkId;
 };
 
 void threadpool::workFunction () {
     while(1) {   //Loop function for each thread
-		std::string work = getWork();
-        cout << "Got the work: " << work << std::endl;
-        //static_cast<CallData*>(work)->Proceed();
+		struct work wrk;
+        wrk = getWork();
+        //cout << "Got the work: " << wrk.task << std::endl;
+        std::string res = exec(wrk.task);
+        //cout << "Result:" << res << endl; 
+        commandOutput[wrk.id] = res;
     }
+}
+
+std::string threadpool::exec(std::string cmd) {
+    std::array<char, 512> buf;
+    std::string res;
+    std::unique_ptr<FILE, decltype(&pclose)> exepipe(popen(cmd.c_str(), "r"), pclose);
+    if (!exepipe) {
+        std::cout<< "popen() failed!: Errno" << errno << std::endl ;
+    }
+    while (fgets(buf.data(), buf.size(), exepipe.get()) != nullptr) {
+        res += buf.data();
+    }
+    return res;
 }
 
 void threadpool::join () {
@@ -40,14 +72,20 @@ void threadpool::join () {
     }
 }
 
-void threadpool::putWork(std::string work) {
+//Returns uniq id for every work put in the queue
+int threadpool::putWork(std::string task) {
+  struct work wrk;
+  wrk.task = task;
   std::unique_lock<std::mutex> lck(mutexL_);
-  workQ_.push(work);
+  wrk.id = ++runningWorkId;
+  if(runningWorkId == 500) runningWorkId=0;
+  workQ_.push(wrk);
   condition_.notify_all();
+  return wrk.id;
 }
 
-std::string threadpool::getWork() {
-    std::string ret;
+work threadpool::getWork() {
+    struct work ret;
     std::unique_lock<std::mutex> lck( mutexL_,std::defer_lock);
     lck.lock();
     while (workQ_.empty()) condition_.wait(lck);

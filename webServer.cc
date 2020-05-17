@@ -6,6 +6,7 @@
 #include <iostream>
 #include "jsonreader.h"
 #include "threadpool.h"
+#include <cstdio>
 
 using namespace std;
 using namespace restbed;
@@ -22,14 +23,23 @@ void post_method_handler( const shared_ptr< Session > session )
     {
         //fprintf( stdout, "%.*s\n", ( int ) body.size( ), body.data( ) );
         //cout << body.data() << endl;
+        int id=0;
+        char ret[100];
+        int size=0;
         MessageMap messages;
         const char* json = reinterpret_cast<const char *>(body.data());
         ParseMessages(json, messages);
         for (MessageMap::const_iterator itr = messages.begin(); itr != messages.end(); ++itr){
             cout << itr->first << ": " << itr->second << endl;
-            thPool->putWork(itr->second);
+            id = thPool->putWork(itr->second);
         }
-        session->close( OK, "Command received\n", { { "Content-Length", "17" }, { "Connection", "close" } } );
+        sprintf( ret, "%s%d%s", "Command Received,ID=", id, "\n" ); 
+        if(id<10) size=22;
+        else if(id>99) size=24;
+        else size=23;
+        std::string s = std::to_string(size);
+        cout << ret << endl;
+        session->close( OK, ret, { { "Content-Length", s.c_str() }, { "Connection", "close" } } );
     } );
 }
 
@@ -37,8 +47,18 @@ void get_method_handler( const shared_ptr< Session > session )
 {
     stringstream id;
     id << ::this_thread::get_id( );
-    auto body = String::format( "Hello From Thread %s\n", id.str( ).data( ) );
-    
+    const auto request = session->get_request( );
+    int reqId = request->get_query_parameter( "id", 0 );
+    cout << "GET request ID recevied:" << reqId << endl;
+    string body;
+    if(reqId == 0) //Send overal status of all the commands
+    {
+        body = "Overal status:";
+    } else if( reqId > 0 && reqId <= 500) {
+        body = thPool->getOutput(reqId);
+    } else {
+        body = "Wrong command send, please send either command id(1-500) or without id";
+    }
     session->close( OK, body, { { "Content-Length", ::to_string( body.length( ) ) } } );
 }
 
@@ -63,7 +83,7 @@ int main(int argc, char** argv)
     thPool = new threadpool(maximumThreads);
     /*************Web server Methods**************************/
     auto resource = make_shared< Resource >( );
-    resource->set_path( "/resource" );
+    resource->set_path( "/status" );
     resource->set_method_handler( "GET", get_method_handler );
     auto resource1 = make_shared< Resource >( );
     resource1->set_path( "/command" );
