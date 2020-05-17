@@ -7,30 +7,30 @@
 
 class threadpool {
     public:
-        threadpool(int numThrd, std::vector<std::string> vendorAddresses) 
-        : numThreads(numThrd), vendorAddresses_(vendorAddresses) {
+        threadpool(int numThrd) 
+        : numThreads(numThrd) {
             for (int i=0; i<numThrd; ++i) {
                 std::thread* th = new std::thread(&threadpool::workFunction, this);
                 threads.push_back(th);
             }
         }
-        void putWork(void *);
-        void* getWork();
+        void putWork(std::string);
+        std::string getWork();
         void workFunction();
         void join();
     private:
         int numThreads;
         std::mutex mutexL_;
         std::condition_variable condition_;
-        std::queue<void*> workQ_;
+        std::queue<std::string> workQ_;
         std::vector<std::thread*> threads;
-        std::vector<std::string> vendorAddresses_;
 };
 
 void threadpool::workFunction () {
     while(1) {   //Loop function for each thread
-		void* work = getWork();
-        static_cast<CallData*>(work)->Proceed();
+		std::string work = getWork();
+        cout << "Got the work: " << work << std::endl;
+        //static_cast<CallData*>(work)->Proceed();
     }
 }
 
@@ -40,14 +40,14 @@ void threadpool::join () {
     }
 }
 
-void threadpool::putWork(void * work) {
+void threadpool::putWork(std::string work) {
   std::unique_lock<std::mutex> lck(mutexL_);
   workQ_.push(work);
   condition_.notify_all();
 }
 
-void* threadpool::getWork() {
-    void* ret;
+std::string threadpool::getWork() {
+    std::string ret;
     std::unique_lock<std::mutex> lck( mutexL_,std::defer_lock);
     lck.lock();
     while (workQ_.empty()) condition_.wait(lck);

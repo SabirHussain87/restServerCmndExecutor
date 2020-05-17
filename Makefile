@@ -1,6 +1,6 @@
 #OpenMP Flags Etc.
 FLAGS = -g -std=c++14 -I restbed/distribution/include/ -L restbed/distribution/library/
-LIBS = -lrestbed
+LIBS = -lrestbed -lpthread
 CC = g++
 
 
