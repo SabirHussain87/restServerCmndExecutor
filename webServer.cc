@@ -38,7 +38,7 @@ void post_method_handler( const shared_ptr< Session > session )
         else if(id>99) size=24;
         else size=23;
         std::string s = std::to_string(size);
-        cout << ret << endl;
+        //cout << ret << endl;
         session->close( OK, ret, { { "Content-Length", s.c_str() }, { "Connection", "close" } } );
     } );
 }
@@ -53,7 +53,8 @@ void get_method_handler( const shared_ptr< Session > session )
     string body;
     if(reqId == 0) //Send overal status of all the commands
     {
-        body = "Overal status:";
+        body = "Overal status:\n";
+        body += thPool->getStatus();
     } else if( reqId > 0 && reqId <= 500) {
         body = thPool->getOutput(reqId);
     } else {

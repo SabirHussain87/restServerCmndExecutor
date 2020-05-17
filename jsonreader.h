@@ -73,17 +73,3 @@ static void ParseMessages(const char* json, MessageMap& messages) {
     }
 }
 
-/*
-int main() {
-    MessageMap messages;
-
-    const char* json1 = "{ \"greeting\" : \"Hello!\", \"farewell\" : \"bye-bye!\" }";
-    cout << json1 << endl;
-    ParseMessages(json1, messages);
-
-    for (MessageMap::const_iterator itr = messages.begin(); itr != messages.end(); ++itr)
-        cout << itr->first << ": " << itr->second << endl;
-
-    return 0;
-}
-*/

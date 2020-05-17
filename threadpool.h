@@ -5,7 +5,7 @@
 #include <queue>
 #include <string>
 #include <vector>
-
+#include <set>
 #define MAX_WORK 500
 struct work {
     std::string task;
@@ -31,6 +31,7 @@ class threadpool {
         std::string getOutput(int id) {
             return commandOutput[id];
         }
+        std::string getStatus();
     private:
         int numThreads;
         std::mutex mutexL_;
@@ -39,6 +40,9 @@ class threadpool {
         std::queue<work> workQ_;
         std::vector<std::thread*> threads;
         std::vector<string> commandOutput;
+        std::set<int> pending;
+        std::set<int> running;
+        std::set<int> done;
         int runningWorkId;
 };
 
@@ -50,7 +54,26 @@ void threadpool::workFunction () {
         std::string res = exec(wrk.task);
         //cout << "Result:" << res << endl; 
         commandOutput[wrk.id] = res;
+        //Delete this work id from running and put it in done
+        running.erase(wrk.id);
+        done.insert(wrk.id);
     }
+}
+
+std::string threadpool::getStatus() {
+    std::string ret = "Running command ids:";
+    for (std::set<int>::iterator it=running.begin(); it!=running.end(); ++it)
+        ret += " " + std::to_string(*it);
+    ret += "\n";
+    ret += "Finished command ids:";
+    for (std::set<int>::iterator it=done.begin(); it!=done.end(); ++it)
+        ret += " " + std::to_string(*it);
+   ret += "\n";
+    ret += "Pending command ids:";
+    for (std::set<int>::iterator it=pending.begin(); it!=pending.end(); ++it)
+        ret += " " + std::to_string(*it);
+   ret += "\n";
+   return ret;
 }
 
 std::string threadpool::exec(std::string cmd) {
@@ -74,12 +97,14 @@ void threadpool::join () {
 
 //Returns uniq id for every work put in the queue
 int threadpool::putWork(std::string task) {
+  std::cout << "Received work" << task << std::endl;
   struct work wrk;
   wrk.task = task;
   std::unique_lock<std::mutex> lck(mutexL_);
   wrk.id = ++runningWorkId;
   if(runningWorkId == 500) runningWorkId=0;
   workQ_.push(wrk);
+  pending.insert(wrk.id);
   condition_.notify_all();
   return wrk.id;
 }
@@ -91,6 +116,8 @@ work threadpool::getWork() {
     while (workQ_.empty()) condition_.wait(lck);
     ret = workQ_.front();
     workQ_.pop();
+    running.insert(ret.id);
+    pending.erase(ret.id);
     lck.unlock();
     return ret;
 }
